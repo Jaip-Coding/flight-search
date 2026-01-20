@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Flight Search — Pro</title>
+<style>
+  :root { --primary: #2563eb; --bg: #f8fafc; --border: #e2e8f0; --text: #1e293b; }
+  body { font-family: 'Inter', system-ui, sans-serif; margin: 0; padding: 20px; background: var(--bg); color: var(--text); line-height: 1.5; }
+  h1 { font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem; color: #0f172a; display: flex; justify-content: space-between; align-items: center; }
+  
+  .panel { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .panel-title { font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.025em; color: #64748b; margin-bottom: 12px; display: block; }
+
+  /* Compact Filter Layout (Original) */
+  .filters-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+    gap: 12px; 
+    align-items: end;
+  }
+  
+  .filter-group { display: flex; flex-direction: column; gap: 4px; }
+  label { font-size: 12px; font-weight: 600; color: #475569; }
+  
+  input, select, textarea { 
+    width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border); 
+    font-size: 13px; outline: none; transition: border-color 0.2s; box-sizing: border-box;
+  }
+  input:focus, select:focus { border-color: var(--primary); }
+
+  textarea { min-height: 60px; font-family: monospace; margin-top: 8px; }
+  
+  .field-inline { display: flex; gap: 4px; align-items: center; }
+  
+  /* Table Styling (Original) */
+  .table-container { overflow-x: auto; margin-top: 8px; border-radius: 8px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; background: white; }
+  th { background: #f1f5f9; font-weight: 600; text-align: left; padding: 10px; border-bottom: 2px solid var(--border); position: sticky; top: 0; }
+  td { padding: 10px; border-bottom: 1px solid var(--border); }
+  tr:hover { background: #f8fafc; }
+
+  /* Buttons & Actions (Original) */
+  .actions { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+  button { 
+    background: var(--primary); color: white; border: none; padding: 7px 14px; 
+    border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
+  }
+  button.ghost { background: #f1f5f9; color: #475569; border: 1px solid var(--border); }
+  button:hover { opacity: 0.9; }
+  
+  .stats { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--primary); }
+  .errors { color: #dc2626; font-size: 12px; margin-top: 8px; white-space: pre-wrap; }
+
+  /* About Modal Styling */
+  #aboutModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+  .modal-content { background: white; padding: 24px; border-radius: 10px; max-width: 500px; width: 90%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+
+  @media (max-width: 600px) { .filters-grid { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>
+  Flight Search Terminal
+  <button class="ghost" onclick="toggleAbout(true)" style="padding: 4px 10px; font-size: 11px;">About</button>
+</h1>
+
+<div class="panel">
+  <span class="panel-title">Data Ingestion</span>
+  <div style="display: flex; gap: 12px; align-items: flex-start;">
+    <div style="flex: 1;">
+        <input id="fileInput" type="file" accept=".txt,.fdsf" multiple />
+        <textarea id="pasteArea" placeholder="Format: A320 Munich(MUC) Berlin(BER) Lufthansa DLH5T LH1934 09:00 10:10 #Comments possible"></textarea>
+    </div>
+    <div class="actions" style="flex-direction: column; margin-top: 0; width: 140px;">
+        <button id="loadBtn" style="width: 100%;">Load Data</button>
+        <!-- <button id="sampleBtn" class="ghost" style="width: 100%;">Use Sample</button> -->
+        <button id="clearBtn" class="ghost" style="width: 100%;">Clear</button>
+    </div>
+  </div>
+  <div id="parseErrors" class="errors"></div>
+  <div id="meta" style="font-size: 12px; color: #94a3b8; margin-top: 8px;">Initializing database...</div>
+</div>
+
+<div class="panel">
+  <span class="panel-title">Search Filters</span>
+  <div class="filters-grid">
+    <div class="filter-group">
+      <label>Aircraft</label>
+      <select id="aircraftSelect" class="auto-filter"><option value="">All Types</option></select>
+    </div>
+
+    <div class="filter-group">
+      <label>Airline (Name/IATA/ICAO)</label>
+      <input id="airlineInput" class="auto-filter" list="airlineList" placeholder="e.g. DLH or Lufthansa" />
+      <datalist id="airlineList"></datalist>
+    </div>
+
+    <div class="filter-group">
+      <label>From (Airport/Code)</label>
+      <input id="depInput" class="auto-filter" list="depList" placeholder="e.g. Munich (MUC)" />
+      <datalist id="depList"></datalist>
+    </div>
+
+    <div class="filter-group">
+      <label>To (Airport/Code)</label>
+      <input id="arrInput" class="auto-filter" list="arrList" placeholder="e.g. BER" />
+      <datalist id="arrList"></datalist>
+    </div>
+
+    <div class="filter-group">
+      <label>Flight No.</label>
+      <input id="flightNoInput" class="auto-filter" type="text" placeholder="e.g. DLH5T" />
+    </div>
+
+    <div class="filter-group">
+      <label>Pax Flight No.</label>
+      <input id="paxFlightInput" class="auto-filter" type="text" placeholder="e.g. LH1934" />
+    </div>
+
+    <div class="filter-group">
+      <label>Dep. Window</label>
+      <div class="field-inline">
+        <input id="depFrom" class="auto-filter" type="time" />
+        <span style="color:#cbd5e1">-</span>
+        <input id="depTo" class="auto-filter" type="time" />
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <label>Arr. Window</label>
+      <div class="field-inline">
+        <input id="arrFrom" class="auto-filter" type="time" />
+        <span style="color:#cbd5e1">-</span>
+        <input id="arrTo" class="auto-filter" type="time" />
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button id="resetFilters" class="ghost">Reset All</button>
+    <button id="exportBtn" class="ghost">Export CSV</button>
+    <div class="stats">Matches: <span id="matchCount">0</span></div>
+  </div>
+</div>
+
+<div class="panel">
+  <span class="panel-title">Live Results</span>
+  <div class="table-container">
+    <table id="resultsTable">
+      <thead>
+        <tr>
+          <th>Aircraft</th>
+          <th>Departure</th>
+          <th>Destination</th>
+          <th>Airline</th>
+          <th>Flight</th>
+          <th>Pax No</th>
+          <th>Dep</th>
+          <th>Arr</th>
+        </tr>
+      </thead>
+      <tbody id="resultsArea">
+        <tr><td colspan="8" style="text-align:center; color:#94a3b8; padding: 40px;">No data loaded.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="aboutModal" onclick="toggleAbout(false)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h3 style="margin-top:0">About Flight Search</h3>
+    <p>A specialized search engine for stored flight simulator data.</p>
+    <ul style="font-size: 13px; color: #475569;">
+      <li><strong>Flexible Search:</strong> Search airports by name, IATA code, or "Name (IATA)" format.</li>
+      <li><strong>Comment Support:</strong> Lines starting with <code>#</code> or text after data are ignored.</li>
+      <li><strong>Databank:</strong> Automatically loads a built-in .fdsf file and merges it with your uploads.</li>
+    </ul>
+    <button onclick="toggleAbout(false)" style="width:100%">Close</button>
+  </div>
+</div>
+
+<script>
+let remoteFlights = [];
+let userFlights = [];
+let allFlights = [];
+
+const REMOTE_DB_URL = "flights.fdsf"; 
+
+function toggleAbout(show) { document.getElementById('aboutModal').style.display = show ? 'flex' : 'none'; }
+
+function normalizeForSearch(str) {
+  return str.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function normalizeTime(t){
+  const cleaned=t.trim();
+  const colon=cleaned.indexOf(':');
+  let hh,mm;
+  if(colon>=0){[hh,mm]=cleaned.split(':').map(Number);}
+  else{hh=Number(cleaned.slice(0,-2));mm=Number(cleaned.slice(-2));}
+  const pad=n=>n.toString().padStart(2,'0');
+  return{hh,mm,minutes:hh*60+mm,str:`${pad(hh)}:${pad(mm)}`};
+}
+
+function parseLines(text){
+  const lines=text.split(/\r?\n/);
+  const parsed=[],errors=[];
+  const regex=/^(\S+)\s+(.+?\([A-Za-z0-9]{3}\))\s+(.+?\([A-Za-z0-9]{3}\))\s+(.+?)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$/;
+  
+  lines.forEach((l,i)=>{
+    let cleanLine = l.split('#')[0].trim();
+    if(!cleanLine) return;
+
+    const m=cleanLine.match(regex);
+    if(!m){errors.push(`Line ${i+1}: Invalid format`);return;}
+    
+    const[_,aircraft,depRaw,arrRaw,airline,flightNo,paxFlightNo,depT,arrT]=m;
+    const dep=depRaw.match(/^(.+)\(([A-Za-z0-9]{3})\)$/);
+    const arr=arrRaw.match(/^(.+)\(([A-Za-z0-9]{3})\)$/);
+    
+    parsed.push({
+      aircraft,
+      airline:airline.trim(),
+      depName:dep?dep[1].trim():'', depCode:dep?dep[2].toUpperCase():'',
+      arrName:arr?arr[1].trim():'', arrCode:arr?arr[2].toUpperCase():'',
+      flightNo, paxFlightNo,
+      depTime:normalizeTime(depT), arrTime:normalizeTime(arrT),
+      searchDep: normalizeForSearch(depRaw),
+      searchArr: normalizeForSearch(arrRaw)
+    });
+  });
+  return{parsed,errors};
+}
+
+async function initDB() {
+  try {
+    const r = await fetch(REMOTE_DB_URL);
+    if(r.ok) {
+      const data = await r.text();
+      const {parsed} = parseLines(data);
+      remoteFlights = parsed;
+    }
+  } catch(e) { console.log("Remote DB not accessible."); }
+  updateMasterList();
+}
+
+function updateMasterList() {
+  allFlights = [...remoteFlights, ...userFlights];
+  document.getElementById('meta').textContent=`${allFlights.length} flights in database (${userFlights.length} added by user).`;
+  populateLists();
+  applyFilters();
+}
+
+function applyFilters(){
+  const aSel=document.getElementById('aircraftSelect').value;
+  const airIn=document.getElementById('airlineInput').value.trim().toLowerCase();
+  const depIn=normalizeForSearch(document.getElementById('depInput').value);
+  const arrIn=normalizeForSearch(document.getElementById('arrInput').value);
+  const fNo=document.getElementById('flightNoInput').value.trim().toLowerCase();
+  const pNo=document.getElementById('paxFlightInput').value.trim().toLowerCase();
+  
+  const dF=toMinutes(document.getElementById('depFrom').value);
+  const dT=toMinutes(document.getElementById('depTo').value);
+  const aF=toMinutes(document.getElementById('arrFrom').value);
+  const aT=toMinutes(document.getElementById('arrTo').value);
+
+  const filtered = allFlights.filter(f=>{
+    if(aSel && f.aircraft!==aSel) return false;
+    if(airIn && !(f.airline.toLowerCase().includes(airIn) || f.paxFlightNo.toLowerCase().startsWith(airIn) || f.flightNo.toLowerCase().startsWith(airIn))) return false;
+    if(depIn && !f.searchDep.includes(depIn) && !f.depCode.toLowerCase().includes(depIn)) return false;
+    if(arrIn && !f.searchArr.includes(arrIn) && !f.arrCode.toLowerCase().includes(arrIn)) return false;
+    if(fNo && !f.flightNo.toLowerCase().includes(fNo)) return false;
+    if(pNo && !f.paxFlightNo.toLowerCase().includes(pNo)) return false;
+    
+    if(dF!==null && f.depTime.minutes<dF)return false;
+    if(dT!==null && f.depTime.minutes>dT)return false;
+    if(aF!==null && f.arrTime.minutes<aF)return false;
+    if(aT!==null && f.arrTime.minutes>aT)return false;
+    return true;
+  });
+
+  renderResults(filtered);
+}
+
+function renderResults(list){
+  document.getElementById('matchCount').textContent=list.length;
+  const area = document.getElementById('resultsArea');
+  if(!list.length){
+    area.innerHTML='<tr><td colspan="8" style="text-align:center; padding:20px;">No flights match these filters.</td></tr>';
+    return;
+  }
+  
+  area.innerHTML = list.map(f => `
+    <tr>
+      <td><strong>${f.aircraft}</strong></td>
+      <td>${f.depName} <small style="color:#64748b">(${f.depCode})</small></td>
+      <td>${f.arrName} <small style="color:#64748b">(${f.arrCode})</small></td>
+      <td>${f.airline}</td>
+      <td><code>${f.flightNo}</code></td>
+      <td><code>${f.paxFlightNo}</code></td>
+      <td>${f.depTime.str}</td>
+      <td>${f.arrTime.str}</td>
+    </tr>
+  `).join('');
+}
+
+function populateLists(){
+  const sets={airlines:new Set(),deps:new Set(),arrs:new Set(),aircraft:new Set()};
+  allFlights.forEach(f=>{
+    sets.aircraft.add(f.aircraft);
+    sets.airlines.add(f.airline);
+    sets.deps.add(`${f.depName} (${f.depCode})`);
+    sets.arrs.add(`${f.arrName} (${f.arrCode})`);
+  });
+  
+  const fillS = (id, set) => {
+    const s=document.getElementById(id);
+    s.innerHTML='<option value="">All Types</option>';
+    Array.from(set).sort().forEach(v=>{ const o=document.createElement('option');o.value=v;o.textContent=v;s.appendChild(o); });
+  };
+  const fillL = (id, set) => {
+    const d=document.getElementById(id);
+    d.innerHTML='';
+    Array.from(set).sort().forEach(v=>{ const o=document.createElement('option');o.value=v;d.appendChild(o); });
+  };
+
+  fillS('aircraftSelect', sets.aircraft);
+  fillL('airlineList', sets.airlines);
+  fillL('depList', sets.deps);
+  fillL('arrList', sets.arrs);
+}
+
+function toMinutes(t){ if(!t)return null; const[a,b]=t.split(':').map(Number); return a*60+b; }
+
+document.querySelectorAll('.auto-filter').forEach(el => {
+    el.addEventListener('input', applyFilters);
+    el.addEventListener('change', applyFilters);
+});
+
+document.getElementById('loadBtn').onclick=()=>{
+  const val=document.getElementById('pasteArea').value.trim();
+  if(val) {
+    const {parsed, errors} = parseLines(val);
+    userFlights = [...userFlights, ...parsed];
+    document.getElementById('parseErrors').textContent=errors.join(', ');
+    updateMasterList();
+    document.getElementById('pasteArea').value = '';
+    return;
+  }
+  const files = document.getElementById('fileInput').files;
+  if(files.length === 0) return alert('Select files or paste data.');
+  
+  Array.from(files).forEach(f => {
+    const r=new FileReader();
+    r.onload=e=>{
+      const {parsed, errors} = parseLines(e.target.result);
+      userFlights = [...userFlights, ...parsed];
+      document.getElementById('parseErrors').textContent += errors.join(', ');
+      updateMasterList();
+    };
+    r.readAsText(f);
+  });
+};
+
+document.getElementById('sampleBtn').onclick=()=>{
+  const s=`A320 Munich(MUC) Berlin(BER) Lufthansa DLH5T LH1934 09:00 10:10 #Morning`;
+  document.getElementById('pasteArea').value=s;
+};
+
+document.getElementById('clearBtn').onclick=()=>{
+    userFlights = [];
+    document.getElementById('pasteArea').value = '';
+    document.getElementById('parseErrors').textContent = '';
+    updateMasterList();
+};
+
+document.getElementById('resetFilters').onclick=()=>{
+    document.querySelectorAll('.auto-filter').forEach(e=>e.value='');
+    applyFilters();
+};
+
+document.getElementById('exportBtn').onclick=()=>{
+  const head='Aircraft,Dep,DepCode,Arr,ArrCode,Airline,FlightNo,PaxNo,DepTime,ArrTime';
+  const rows=allFlights.map(f=>[f.aircraft,f.depName,f.depCode,f.arrName,f.arrCode,f.airline,f.flightNo,f.paxFlightNo,f.depTime.str,f.arrTime.str].map(x=>`"${x}"`).join(',')).join('\n');
+  const blob=new Blob([head+'\n'+rows],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='flights.csv'; a.click();
+};
+
+window.onload = initDB;
+</script>
+</body>
+</html>
