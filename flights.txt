@@ -333,10 +333,10 @@ A319 Munich(MUC) Milan(LIN) Lufthansa DLH5HR LH1850 08:00 09:00
 A319 Munich(MUC) Dusseldorf(DUS) Eurowings EWG82L EW9081 08:20 09:30
 A20N Munich(MUC) London(LHR) Lufthansa DLH3PP LH2472 09:25 10:25
 A319 Munich(MUC) Hamburg(HAM) Eurowings EWG2N EW7171 09:15 10:35
-A319 Berlin(BER) Munich(MUC) Lufthansa DLH GWI4RP LH1929 09:00 10:10
+A319 Berlin(BER) Munich(MUC) Lufthansa GWI4RP LH1929 09:00 10:10
 A321 Frankfurt(FRA) Munich(MUC) Lufthansa DLH2VT LH98 09:15 10:10
 A20N Munich(MUC) Stockholm(ARN) Lufthansa DLH4UT LH2414 09:10 11:25
-A320 Munich(MUC) Hamburg(HAM) Lufthansa DLH GWI7FT LH2060 10:00 11:20
+A320 Munich(MUC) Hamburg(HAM) Lufthansa GWI7FT LH2060 10:00 11:20
 A20N London(LHR) Munich(MUC) Lufthansa City LHX2EL VL2487 07:40 10:30
 B77L Larnaca(LCA) Malta(MLA) Emirates UAE17K EK109 11:10 13:00
 B763 Athens(ATH) Larnaca(LCA) DHL BCS4MP BCS4MP 10:20 11:53
